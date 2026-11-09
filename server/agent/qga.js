@@ -13,6 +13,10 @@ import { qgaSocket } from '../env.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The agent is part of the guest, i.e. untrusted: cap how much of its stream we buffer before
+// giving up, so a compromised or buggy agent cannot grow host memory without bound.
+const MAX_MESSAGE_BYTES = 1024 * 1024;
+
 function connect(socketPath, timeoutMs) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
@@ -36,8 +40,15 @@ function connect(socketPath, timeoutMs) {
 
 function reader(socket) {
   let buffer = Buffer.alloc(0);
+  let overflow = false;
   socket.on('data', (chunk) => {
+    if (overflow) return;
     buffer = Buffer.concat([buffer, chunk]);
+    if (buffer.length > MAX_MESSAGE_BYTES) {
+      overflow = true;
+      buffer = Buffer.alloc(0);
+      socket.destroy();
+    }
   });
   return async (timeoutMs) => {
     const deadline = Date.now() + timeoutMs;
@@ -58,6 +69,7 @@ function reader(socket) {
           continue;
         }
       }
+      if (overflow) throw new Error('guest agent reply exceeded the 1 MiB limit');
       if (Date.now() >= deadline) throw new Error('guest agent did not answer');
       if (socket.destroyed) throw new Error('guest agent channel closed');
       await sleep(20);

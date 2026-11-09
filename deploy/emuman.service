@@ -1,0 +1,29 @@
+[Unit]
+Description=emuman — KVM/QEMU web manager
+Documentation=https://github.com/your-org/emuman
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emuman
+Group=emuman
+SupplementaryGroups=kvm
+WorkingDirectory=/opt/emuman
+Environment=NODE_ENV=production
+Environment=EMUMAN_PORT=8787
+Environment=EMUMAN_HOST=127.0.0.1
+Environment=EMUMAN_DATA_DIR=/var/lib/emuman
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+# Keep the API free of core dumps and restrict filesystem writes.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/emuman
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

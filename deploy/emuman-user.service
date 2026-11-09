@@ -1,0 +1,26 @@
+[Unit]
+Description=emuman — KVM/QEMU web manager (user instance)
+Documentation=file:///home/steelburn/apps/emuman/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/apps/emuman
+Environment=NODE_ENV=production
+Environment=EMUMAN_PORT=8787
+Environment=EMUMAN_HOST=127.0.0.1
+Environment=EMUMAN_DATA_DIR=%h/apps/emuman/data
+ExecStart=/usr/bin/node %h/apps/emuman/server/index.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+LimitNOFILE=65535
+# Guests are separate QEMU processes: stopping/restarting the API must not kill them.
+KillMode=process
+# Unprivileged hardening that works inside a systemd --user manager.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

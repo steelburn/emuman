@@ -96,40 +96,9 @@ export async function qgaPing(vmId, options) {
   return true;
 }
 
-/** Run a program inside the guest (fire and forget; the agent returns the pid). */
-export async function qgaExec(vmId, program, args = [], options) {
-  return qgaCommand(vmId, 'guest-exec', { path: program, arg: args, 'capture-output': false }, options);
-}
-
-/**
- * Ask the guest to power off, using the mechanism its OS actually honours:
- * the Windows port of qemu-ga accepts `guest-shutdown` but the request can be dropped
- * silently (seen on Windows 11 at the lock screen), while going through `shutdown.exe`
- * always works. Returns which path was used, or null when the agent is unavailable.
- */
-export async function qgaRequestShutdown(vmId, { timeoutMs = 5000 } = {}) {
-  let os = null;
-  try {
-    os = await qgaCommand(vmId, 'guest-get-osinfo', {}, { timeoutMs: 3000 });
-  } catch {
-    /* the agent is not there; let the caller fall back to ACPI */
-    return null;
-  }
-  if (/windows/i.test(os?.name || os?.['pretty-name'] || '')) {
-    try {
-      await qgaExec(vmId, 'C:\\Windows\\System32\\shutdown.exe', ['/s', '/f', '/t', '5'], { timeoutMs });
-      return 'guest-exec';
-    } catch (err) {
-      // fall through to the plain agent request
-    }
-  }
-  await qgaShutdown(vmId, { timeoutMs });
-  return 'guest-shutdown';
-}
-
 /**
  * Ask the guest to power off. The agent usually drops the channel mid-shutdown, so a missing
- * reply is not an error once the request has been accepted.
+ * reply after the request was accepted is not an error.
  */
 export async function qgaShutdown(vmId, { mode = 'powerdown', timeoutMs = 5000 } = {}) {
   try {
@@ -138,4 +107,20 @@ export async function qgaShutdown(vmId, { mode = 'powerdown', timeoutMs = 5000 }
     if (/channel closed|did not answer|ECONNRESET|EPIPE/i.test(err.message)) return {};
     throw err;
   }
+}
+
+/**
+ * Ask the guest to power off. `guest-shutdown` is implemented by the agent as a real OS shutdown
+ * request, so it is the reliable path — the ACPI power button is ignored by some guests, and
+ * running `shutdown.exe` through `guest-exec` does not work at all (Session 0 has no console).
+ * Returns which mechanism was used, or null when the agent is unavailable.
+ */
+export async function qgaRequestShutdown(vmId, { timeoutMs = 5000 } = {}) {
+  try {
+    await qgaCommand(vmId, 'guest-get-osinfo', {}, { timeoutMs: 3000 });
+  } catch {
+    return null; // no agent: let the caller fall back to ACPI
+  }
+  await qgaShutdown(vmId, { timeoutMs });
+  return 'guest-shutdown';
 }

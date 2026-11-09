@@ -870,7 +870,7 @@ export class VMManager extends EventEmitter {
           this.setStatus(id, priorStatus);
           store.addEvent({
             action: 'vm.shutdown-timeout',
-            message: `${vm.name} ignored the ACPI power button for 20s and is still running`,
+            message: `${vm.name} did not power off within 30s (still running or shutting down)`,
             vmId: id,
             user,
             level: 'warn',
